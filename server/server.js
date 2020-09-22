@@ -1,5 +1,6 @@
 import express from 'express'
 import path from 'path'
+import axios from 'axios'
 import cors from 'cors'
 import bodyParser from 'body-parser'
 import sockjs from 'sockjs'
@@ -9,8 +10,11 @@ import React from 'react'
 import cookieParser from 'cookie-parser'
 import config from './config'
 import Html from '../client/html'
+// import { data } from 'autoprefixer'
 
 const Root = () => ''
+
+const { readFile, writeFile, unlink } = require('fs').promises
 
 try {
   // eslint-disable-next-line import/no-unresolved
@@ -31,6 +35,12 @@ let connections = []
 const port = process.env.PORT || 8090
 const server = express()
 
+const setHeaders = (req, res, next) => {
+  res.set('x-skillcrucial-user', 'ce1971e0-6b21-4728-8efe-5369a4c49aad')
+  res.set('Access-Control-Expose-Headers', 'X-SKILLCRUCIAL-USER')
+  next()
+}
+
 const middleware = [
   cors(),
   express.static(path.resolve(__dirname, '../dist/assets')),
@@ -41,10 +51,73 @@ const middleware = [
 
 middleware.forEach((it) => server.use(it))
 
+function ifFileExist() {
+  const url = 'https://jsonplaceholder.typicode.com/users'
+  const bigData = readFile(`${__dirname}/users.json`)
+    .then((file) => {
+      return JSON.parse(file)
+    })
+    .catch(async () => {
+      const response = await axios(url)
+        .then((res) => res.data)
+      response.sort((a, b) => a.id - b.id)
+      writeFile(`${__dirname}/users.json`, JSON.stringify(response), { encoding: 'utf8' })
+      return response
+    })
+  return bigData
+}
+
+function toWriteFile (fileData) {
+  writeFile(`${__dirname}/users.json`, JSON.stringify(fileData), 'utf8')
+}
+
+server.get('/api/v1/users', async (req, res) => {
+  const newData = await ifFileExist()
+  res.json(newData)
+})
+
+server.post('/api/v1/users', async (req, res) => {
+  const newUser = req.body
+  const userData = await ifFileExist()
+  newUser.id = userData.length === 0 ? 1 : userData[userData.length - 1].id + 1
+  toWriteFile([...userData, newUser])
+  res.json({ status: 'success', id: newUser.id})
+})
+
+server.patch('/api/v1/users/:userId', async (req, res) => {
+  const { userId } = req.params
+  const newUser = req.body
+  const arr = await ifFileExist()
+  const objId = arr.find((obj) => obj.id === +userId)
+  const objId2 = { ...objId, ...newUser }
+  const arr2 = arr.map((rec) => {
+    return rec.id === objId2.id ? objId2 : rec
+  })
+  toWriteFile(arr2)
+  res.json({status: 'success', id: 'userId'})
+})
+
+server.delete('/api/v1/users/:userId', async (req, res) => {
+  const { userId } = req.params
+  const arr = await ifFileExist()
+  const objId = arr.find((obj) => obj.id === +userId)
+  const arr2 = arr.filter((rec) => rec.id !== objId.id)
+  toWriteFile(arr2)
+  res.json({status: 'success', id: 'userId'})
+})
+
+server.delete('/api/v1/users/', async (req, res) => {
+  unlink(`${__dirname}/users.json`)
+  .then(() => res.json({ status: 'success'}))
+  .catch(() => res.send('No file'))
+})
+
 server.use('/api/', (req, res) => {
   res.status(404)
   res.end()
 })
+
+server.use(setHeaders)
 
 const [htmlStart, htmlEnd] = Html({
   body: 'separator',
