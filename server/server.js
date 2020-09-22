@@ -10,7 +10,6 @@ import React from 'react'
 import cookieParser from 'cookie-parser'
 import config from './config'
 import Html from '../client/html'
-// import { data } from 'autoprefixer'
 
 const Root = () => ''
 
@@ -41,6 +40,8 @@ const setHeaders = (req, res, next) => {
   next()
 }
 
+server.use(setHeaders)
+
 const middleware = [
   cors(),
   express.static(path.resolve(__dirname, '../dist/assets')),
@@ -67,7 +68,7 @@ function ifFileExist() {
   return bigData
 }
 
-function toWriteFile (fileData) {
+function toWriteFile(fileData) {
   writeFile(`${__dirname}/users.json`, JSON.stringify(fileData), 'utf8')
 }
 
@@ -116,8 +117,6 @@ server.use('/api/', (req, res) => {
   res.status(404)
   res.end()
 })
-
-server.use(setHeaders)
 
 const [htmlStart, htmlEnd] = Html({
   body: 'separator',
